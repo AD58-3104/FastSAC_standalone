@@ -1,0 +1,13 @@
+[project]
+name = "isaaclab-fast-sac"
+version = "0.1.0"
+description = "Standalone FastSAC (Soft Actor-Critic) implementation for IsaacLab"
+requires-python = ">=3.10"
+dependencies = ["torch", "tensordict", "tqdm"]
+
+[project.optional-dependencies]
+logging = ["tensorboard"]
+
+[build-system]
+requires = ["setuptools>=64"]
+# build-backend = "setuptools.backends._legacy:_Backend"
