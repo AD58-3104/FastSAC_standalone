@@ -3,6 +3,7 @@
 from .networks import Actor, Critic, DistributionalQNetwork
 from .normalization import EmpiricalNormalization
 from .replay_buffer import SimpleReplayBuffer
+from .augmentation_utils import SymmetryUtils
 
 # These require isaaclab / rsl_rl to be installed and are imported lazily
 # to allow using the core modules (networks, normalization, replay_buffer) standalone.
@@ -38,4 +39,5 @@ __all__ = [
     "DistributionalQNetwork",
     "EmpiricalNormalization",
     "SimpleReplayBuffer",
+    "SymmetryUtils",
 ]

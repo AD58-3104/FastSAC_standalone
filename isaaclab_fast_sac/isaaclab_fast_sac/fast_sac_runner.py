@@ -14,6 +14,7 @@ from tensordict import TensorDict
 from torch import nn, optim
 from torch.amp import GradScaler, autocast
 
+from .augmentation_utils import SymmetryUtils
 from .networks import Actor, Critic
 from .normalization import EmpiricalNormalization
 from .replay_buffer import SimpleReplayBuffer
@@ -163,6 +164,8 @@ class FastSacRunner:
             gamma=alg["gamma"],
             device=device,
         )
+
+        self.symmetry_utils = SymmetryUtils(self.env, self.obs_groups) if alg.get("use_symmetry", False) else None
 
         # Synchronize model parameters across GPUs
         if self.is_distributed:
@@ -507,6 +510,38 @@ class FastSacRunner:
         large_batch_size = batch_size * num_updates
         large_data = self.rb.sample(large_batch_size)
         samples_per_update = batch_size * self.env.num_envs
+
+        if self.alg_cfg.get("use_symmetry", False):
+            samples_per_update *= 2
+            assert self.symmetry_utils is not None
+
+            augmented_large_data: dict[str, torch.Tensor | dict[str, torch.Tensor]] = {"next": {}}
+            augmented_large_data["observations"] = self.symmetry_utils.augment_observations(
+                obs=large_data["observations"],
+                obs_list=self.obs_groups["policy"],
+            )
+            augmented_large_data["actions"] = self.symmetry_utils.augment_actions(large_data["actions"])
+            augmented_large_data["critic_observations"] = self.symmetry_utils.augment_observations(
+                obs=large_data["critic_observations"],
+                obs_list=self.obs_groups["critic"],
+            )
+
+            assert isinstance(augmented_large_data["next"], dict)
+            augmented_large_data["next"]["observations"] = self.symmetry_utils.augment_observations(
+                obs=large_data["next"]["observations"],
+                obs_list=self.obs_groups["policy"],
+            )
+            augmented_large_data["next"]["critic_observations"] = self.symmetry_utils.augment_observations(
+                obs=large_data["next"]["critic_observations"],
+                obs_list=self.obs_groups["critic"],
+            )
+
+            num_aug = int(augmented_large_data["observations"].shape[0] / large_data["next"]["rewards"].shape[0])
+            augmented_large_data["next"]["rewards"] = large_data["next"]["rewards"].repeat(num_aug)
+            augmented_large_data["next"]["dones"] = large_data["next"]["dones"].repeat(num_aug)
+            augmented_large_data["next"]["truncations"] = large_data["next"]["truncations"].repeat(num_aug)
+            augmented_large_data["next"]["effective_n_steps"] = large_data["next"]["effective_n_steps"].repeat(num_aug)
+            large_data = augmented_large_data
 
         # Normalize all data once
         large_data["observations"] = normalize_obs(large_data["observations"])

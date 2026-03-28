@@ -82,6 +82,9 @@ class FastSacAlgorithmCfg:
     obs_normalization: bool = True
     """Whether to enable observation normalization."""
 
+    use_symmetry: bool = False
+    """Whether to enable symmetry-based data augmentation."""
+
     use_layer_norm: bool = True
     """Whether to use layer normalization."""
 
