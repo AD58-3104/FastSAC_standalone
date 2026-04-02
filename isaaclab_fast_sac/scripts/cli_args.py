@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import sys
-    sys.path.insert(0, "../holosoma/holosoma/src/isaaclab_fast_sac")
+    sys.path.insert(0, "..")
     from isaaclab_fast_sac import FastSacRunnerCfg
 
 
