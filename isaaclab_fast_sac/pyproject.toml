@@ -6,7 +6,7 @@ requires-python = ">=3.10"
 dependencies = ["torch", "tensordict", "tqdm"]
 
 [project.optional-dependencies]
-logging = ["tensorboard"]
+logging = ["tensorboard", "wandb"]
 
 [build-system]
 requires = ["setuptools>=64"]

@@ -22,6 +22,31 @@ from .replay_buffer import SimpleReplayBuffer
 torch.set_float32_matmul_precision("high")
 
 
+class WandbWriter:
+    """Minimal writer adapter exposing the TensorBoard-style API used by the runner."""
+
+    def __init__(self, log_dir: str, project: str, run_name: str, config: dict):
+        import wandb
+
+        self._wandb = wandb
+        self._run = wandb.init(
+            project=project,
+            name=run_name,
+            dir=log_dir,
+            config=config,
+            sync_tensorboard=False,
+            reinit=False,
+        )
+
+    def add_scalar(self, tag: str, scalar_value: float, global_step: int) -> None:
+        self._wandb.log({tag: scalar_value}, step=global_step)
+
+    def close(self) -> None:
+        if self._run is not None:
+            self._run.finish()
+            self._run = None
+
+
 class FastSacRunner:
     """Training runner for FastSAC with IsaacLab environments.
 
@@ -726,14 +751,30 @@ class FastSacRunner:
                 offset += n
 
     def _prepare_logging_writer(self):
-        """Initialize the TensorBoard writer."""
+        """Initialize the configured logging backend."""
         if self.disable_logs or self.log_dir is None:
             return
+
+        logger_type = self.cfg.get("logger", "tensorboard")
+        os.makedirs(self.log_dir, exist_ok=True)
+
         try:
-            from torch.utils.tensorboard import SummaryWriter
-            self.writer = SummaryWriter(log_dir=self.log_dir, flush_secs=10)
+            if logger_type == "tensorboard":
+                from torch.utils.tensorboard import SummaryWriter
+
+                self.writer = SummaryWriter(log_dir=self.log_dir, flush_secs=10)
+            elif logger_type == "wandb":
+                run_name = os.path.basename(self.log_dir)
+                self.writer = WandbWriter(
+                    log_dir=self.log_dir,
+                    project=self.cfg.get("wandb_project", "isaaclab"),
+                    run_name=run_name,
+                    config=self.cfg,
+                )
+            else:
+                raise ValueError(f"Unsupported logger '{logger_type}'.")
         except ImportError:
-            print("TensorBoard not available. Install tensorboard for logging support.")
+            print(f"{logger_type} not available. Install the matching logging dependency.")
 
     def _log(
         self,
@@ -774,3 +815,9 @@ class FastSacRunner:
 
         if len(rewbuffer) > 0:
             print(f"[{it}] reward: {mean_reward:.2f} | ep_len: {mean_length:.0f} | alpha: {self.log_alpha.exp().item():.4f}")
+
+    def close(self) -> None:
+        """Close logger resources."""
+        if self.writer is not None and hasattr(self.writer, "close"):
+            self.writer.close()
+            self.writer = None
